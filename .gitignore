@@ -1,2 +1,5 @@
 .gitignore
 cfg.ini
+availability_check
+availability_check.exe
+main.go.bak
