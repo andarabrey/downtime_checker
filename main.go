@@ -3,19 +3,21 @@ package main
 import (
 	"bufio"
 	"database/sql"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"gopkg.in/ini.v1"
 )
 
 type State struct {
 	Atm_id     string
 	State_date string
 	State      string
+	Mandant_id string
 }
 
 type ATM struct {
@@ -30,18 +32,82 @@ func main() {
 	var date_only string
 	var atm_id []string
 	var placeholder_data []string
+	var err error
+	var arg_first_date, arg_second_date, bank string
+	var mandant int
+
 	// location, _ := time.LoadLocation("Asia/Bangkok")
 
+	// today := time.Now()
+	yesterday := time.Now().AddDate(0, 0, -1)
+	arg_first_date = yesterday.Format("2006-01-02")
+	arg_second_date = yesterday.Format("2006-01-02")
+
+	// if len(os.Args) == 4 {
+	// 	arg_first_date = os.Args[1]
+	// 	bank = os.Args[2]
+	// 	bank = strings.ToUpper(bank)
+	// 	// } else if len(os.Args) == 2 {
+	// 	// 	arg_first_date = os.Args[1]
+	// 	// 	arg_second_date = os.Args[1]
+	// } else
+	if len(os.Args) == 4 {
+		bank = os.Args[1]
+		bank = strings.ToUpper(bank)
+		arg_first_date = os.Args[2]
+		arg_second_date = os.Args[3]
+
+		// } else if len(os.Args) == 2 {
+		// 	arg_first_date = os.Args[1]
+		// 	arg_second_date = os.Args[1]
+	} else if len(os.Args) == 3 {
+		bank = os.Args[1]
+		bank = strings.ToUpper(bank)
+		arg_first_date = os.Args[2]
+		arg_second_date = os.Args[2]
+	} else if len(os.Args) == 2 {
+		bank = os.Args[1]
+		bank = strings.ToUpper(bank)
+	}
+
+	if bank == "BTN" {
+		mandant = 21
+	} else if bank == "BNI" {
+		mandant = 20
+	} else if bank == "BRI" {
+		mandant = 27
+	} else if bank == "BMRI" {
+		mandant = 24
+	}
+
+	fmt.Println("Command         : ", os.Args)
+	fmt.Println("Length Argument : ", len(os.Args))
+	fmt.Println("First Date      : ", arg_first_date)
+	fmt.Println("Second Date     : ", arg_second_date)
+	fmt.Println("Bank            : ", bank)
+	fmt.Println("Mandant         : ", mandant)
+
+	fmt.Println("------------------------")
+	// fmt.Println("Reading Config File")
+	conf, err := ini.Load("cfg.ini")
+	if err != nil {
+		log.Fatal(err)
+		// os.Exit(1)
+	}
+	fmt.Println("Read Config File Success")
+
+	// conf = conf
+	// fmt.Println("App Mode:", conf.Section("").Key("app_mode").String())
+
 	cfg := mysql.Config{
-		User:                 "appops",
-		Passwd:               "J@l1n0ps123!",
-		Net:                  "tcp",
-		Addr:                 "10.133.5.64:6033",
-		DBName:               "atm",
+		User:                 conf.Section("db").Key("user").String(),
+		Passwd:               conf.Section("db").Key("pass").String(),
+		Net:                  conf.Section("db").Key("net").String(),
+		Addr:                 conf.Section("db").Key("host").String(),
+		DBName:               conf.Section("db").Key("db_name").String(),
 		AllowNativePasswords: true,
 	}
 
-	var err error
 	db, err = sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		log.Fatal(err)
@@ -51,12 +117,16 @@ func main() {
 	if pingErr != nil {
 		log.Fatal(pingErr)
 	}
-	fmt.Println("Connected!")
+	fmt.Println("------------------------")
+	log.Default()
+	fmt.Println("Connected to DB!")
+	fmt.Println("------------------------")
 	// DB Connection End
 
 	// Summary Workflow List Start
 	var sts []State
-	rows, err := db.Query("SELECT atm_id, DATE, state FROM history_state WHERE state in (6,2) AND DATE_FORMAT(CONVERT_TZ(date,'+00:00','+00:00'), '%Y-%m-%d') = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by date asc")
+	// rows, err := db.Query("SELECT atm_id, DATE, state FROM history_state WHERE state in (6,2) AND DATE_FORMAT(CONVERT_TZ(date,'+00:00','+00:00'), '%Y-%m-%d') = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by date asc")
+	rows, err := db.Query("SELECT atm_id, DATE, history_state.state, mandant_id FROM history_state INNER JOIN atm ON history_state.atm_id = atm.id WHERE history_state.state in (6,2) AND DATE_FORMAT(CONVERT_TZ(date,'+00:00','+00:00'), '%Y-%m-%d') between ? and ? and mandant_id = ? order by date asc", arg_first_date, arg_second_date, mandant)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +134,7 @@ func main() {
 
 	for rows.Next() {
 		var st State
-		if err := rows.Scan(&st.Atm_id, &st.State_date, &st.State); err != nil {
+		if err := rows.Scan(&st.Atm_id, &st.State_date, &st.State, &st.Mandant_id); err != nil {
 			log.Fatal(err)
 		}
 		sts = append(sts, st)
@@ -120,10 +190,10 @@ func main() {
 						st_date2, _ = time.Parse(layoutFormat, states[i+1].State_date)
 						diff = st_date2.Sub(st_date)
 
-						string_diff := diff.String()
+						// string_diff := diff.String()
 						// out := time.Time{}.Add(diff)
-						diff_format_seconds, _ := time.ParseDuration(string_diff)
-						fmt.Println(diff_format_seconds.Seconds())
+						// diff_format_seconds, _ := time.ParseDuration(string_diff)
+						// fmt.Println(diff_format_seconds.Seconds())
 						// fmt.Println(diff)
 						total = total + diff
 
@@ -135,26 +205,34 @@ func main() {
 			}
 		}
 		if check != 0 {
-			str_data := date_only + ";" + atm_id[k] + ";" + check.String()
+			sec_only := check.Seconds()
+			string_sec_only := fmt.Sprint(sec_only)
+			str_data := date_only + ";" + atm_id[k] + ";" + string_sec_only
 			placeholder_data = append(placeholder_data, str_data)
 			// fmt.Println(date_only, ";", atm_id[k], ";", check)
 			//fmt.Println(str_data)
 		}
 	}
-	fmt.Println(placeholder_data)
+	// fmt.Println(placeholder_data)
+	fmt.Println("Count Of Data   : ", len(placeholder_data))
 
-	currentTime := time.Now().AddDate(0, 0, -1).Format("20060102_")
-	fileName := currentTime + "terminal_downtime_report.csv"
-	fmt.Println(fileName)
-	file, err := os.OpenFile(currentTime+"terminal_downtime_report.csv", os.O_WRONLY|os.O_CREATE, 0666)
+	filename_date, _ := time.Parse("2006-01-02", arg_first_date)
+	filename_date_2, _ := time.Parse("2006-01-02", arg_first_date)
+	currentTime := filename_date.Format("20060102_")
+	currentTime2 := filename_date_2.Format("20060102_")
+
+	fileName := currentTime + currentTime2 + bank + "_terminal_downtime_report.csv"
+	fmt.Println("Success Create CSV")
+	fmt.Println("File Created    : ", fileName)
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		fmt.Println("File does not exists or cannot be created")
 		os.Exit(1)
 	}
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	writer.Write(placeholder_data)
+	// writer := csv.NewWriter(file)
+	// writer.Write(placeholder_data)
 	w := bufio.NewWriter(file)
 
 	fmt.Fprintf(w, "%v\n", "Date;ATM ID;Downtime Duration")
@@ -200,3 +278,18 @@ func main() {
 	// fmt.Println(result)
 	// Send workflow data to template email end
 }
+
+// func ReadConfig() Config {
+// 	var configfile = flags.Configfile
+// 	_, err := os.Stat(configfile)
+// 	if err != nil {
+// 		log.Fatal("Config file is missing: ", configfile)
+// 	}
+
+// 	var config Config
+// 	if _, err := toml.DecodeFile(configfile, &config); err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	//log.Print(config.Index)
+// 	return config
+// }
