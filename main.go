@@ -29,7 +29,7 @@ func main() {
 	// DB Connection Start
 	var db *sql.DB
 	var st_date, st_date2 time.Time
-	var date_only string
+	// var date_only string
 	var atm_id []string
 	var placeholder_data []string
 	var err error
@@ -198,7 +198,7 @@ func main() {
 						total = total + diff
 
 					}
-					date_only = states[i].State_date[0:10]
+					// date_only = states[i].State_date[0:10]
 					// fmt.Println(date_only, ";", states[i].Atm_id, ";", total)
 					check = total
 				}
@@ -207,7 +207,8 @@ func main() {
 		if check != 0 {
 			sec_only := check.Seconds()
 			string_sec_only := fmt.Sprint(sec_only)
-			str_data := date_only + ";" + atm_id[k] + ";" + string_sec_only
+			// str_data := date_only + ";" + atm_id[k] + ";" + string_sec_only
+			str_data := atm_id[k] + ";" + string_sec_only
 			placeholder_data = append(placeholder_data, str_data)
 			// fmt.Println(date_only, ";", atm_id[k], ";", check)
 			//fmt.Println(str_data)
@@ -217,7 +218,7 @@ func main() {
 	fmt.Println("Count Of Data   : ", len(placeholder_data))
 
 	filename_date, _ := time.Parse("2006-01-02", arg_first_date)
-	filename_date_2, _ := time.Parse("2006-01-02", arg_first_date)
+	filename_date_2, _ := time.Parse("2006-01-02", arg_second_date)
 	currentTime := filename_date.Format("20060102_")
 	currentTime2 := filename_date_2.Format("20060102_")
 
@@ -235,7 +236,10 @@ func main() {
 	// writer.Write(placeholder_data)
 	w := bufio.NewWriter(file)
 
-	fmt.Fprintf(w, "%v\n", "Date;ATM ID;Downtime Duration")
+	fmt.Fprintf(w, "%v\n", "Report Downtime ATM Periode "+arg_first_date+" S/D "+arg_second_date)
+	fmt.Fprintf(w, "%v\n", "")
+	fmt.Fprintf(w, "%v\n", "ATM ID;Downtime (Seconds)")
+	// fmt.Fprintf(w, "%v\n", "Date;ATM ID;Downtime (Seconds)")
 	for i := 0; i < len(placeholder_data); i++ {
 		fmt.Fprintf(w, "%v\n", placeholder_data[i])
 	}
